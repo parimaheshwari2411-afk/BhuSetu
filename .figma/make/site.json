@@ -1,0 +1,10 @@
+{
+  "description": "Automates extraction and validation of handwritten and scanned land records in multiple Indian languages, enhancing accuracy and efficiency for land administration.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
