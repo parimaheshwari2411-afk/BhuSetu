@@ -74,14 +74,15 @@ Expected output:
 ```
 Available Accounts
 ==================
-(0) 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (10000 ETH)
+(0) 0x1234... (10000 ETH)
 ...
 Private Keys
 ============
-(0) 0xac0974bec39a17e36ba4a6b4d238ff944bacb476caded64e30b76620615e5d5d
+(0) 0x5678... (KEEP SECRET - DO NOT SHARE)
 ...
 Listening on 127.0.0.1:8545
 ```
+Note: Copy your actual account address and private key from Anvil output
 
 **Terminal 3: Backend Server**
 ```powershell
