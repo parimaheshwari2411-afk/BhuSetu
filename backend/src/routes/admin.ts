@@ -354,9 +354,17 @@ router.post(
         });
       }
 
-      // Update transaction status
+      try {
+        await blockchainService.rejectEscrow(
+          transactionId,
+          reason || "Rejected by registrar"
+        );
+      } catch (chainError) {
+        console.warn("On-chain reject skipped:", chainError);
+      }
+
       await queryDatabase(
-        `UPDATE transactions 
+        `UPDATE transactions
          SET status = $1, registrar_approved_at = NOW()
          WHERE id = $2`,
         [TransactionStatus.REJECTED, transactionId]

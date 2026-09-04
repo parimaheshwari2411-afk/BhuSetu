@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Create index on email and wallet address
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_wallet ON users(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_wallet ON users(wallet_address);
 
 -- Land Parcels table (with PostGIS geometry column)
 CREATE TABLE IF NOT EXISTS land_parcels (
@@ -40,9 +40,9 @@ CREATE TABLE IF NOT EXISTS land_parcels (
 );
 
 -- Create spatial index on geometry column
-CREATE INDEX idx_land_parcels_geometry ON land_parcels USING GIST(geometry);
-CREATE INDEX idx_land_parcels_owner ON land_parcels(owner_id);
-CREATE INDEX idx_land_parcels_ulpin ON land_parcels(ulpin);
+CREATE INDEX IF NOT EXISTS idx_land_parcels_geometry ON land_parcels USING GIST(geometry);
+CREATE INDEX IF NOT EXISTS idx_land_parcels_owner ON land_parcels(owner_id);
+CREATE INDEX IF NOT EXISTS idx_land_parcels_ulpin ON land_parcels(ulpin);
 
 -- Transactions table
 CREATE TABLE IF NOT EXISTS transactions (
@@ -74,11 +74,11 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 
 -- Create indexes on transactions
-CREATE INDEX idx_transactions_parcel ON transactions(parcel_id);
-CREATE INDEX idx_transactions_buyer ON transactions(buyer_id);
-CREATE INDEX idx_transactions_seller ON transactions(seller_id);
-CREATE INDEX idx_transactions_status ON transactions(status);
-CREATE INDEX idx_transactions_created ON transactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_parcel ON transactions(parcel_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_buyer ON transactions(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_seller ON transactions(seller_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
+CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at DESC);
 
 -- Audit Log table
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -91,8 +91,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 -- Create index on audit log
-CREATE INDEX idx_audit_log_transaction ON audit_log(transaction_id);
-CREATE INDEX idx_audit_log_created ON audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_transaction ON audit_log(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
 
 -- Spatial overlap check function
 CREATE OR REPLACE FUNCTION check_parcel_overlap()
@@ -101,7 +101,8 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM land_parcels
         WHERE id != NEW.id
-        AND ST_Overlaps(geometry, NEW.geometry)
+        AND ST_Intersects(geometry, NEW.geometry)
+        AND NOT ST_Touches(geometry, NEW.geometry)
     ) THEN
         RAISE EXCEPTION 'Land parcel overlaps with existing parcel';
     END IF;
@@ -119,7 +120,7 @@ EXECUTE FUNCTION check_parcel_overlap();
 CREATE OR REPLACE FUNCTION calculate_parcel_area()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.area_in_sq_meters := ST_Area(NEW.geometry::geography) / 10000.0;
+    NEW.area_in_sq_meters := ST_Area(NEW.geometry::geography);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

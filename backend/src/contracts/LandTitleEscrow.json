@@ -1,0 +1,199 @@
+[
+  {
+    "inputs": [{ "internalType": "address", "name": "_registrarAddress", "type": "address" }],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "string", "name": "transactionId", "type": "string" },
+      { "indexed": true, "internalType": "string", "name": "parcelId", "type": "string" },
+      { "indexed": true, "internalType": "address", "name": "seller", "type": "address" },
+      { "indexed": false, "internalType": "address", "name": "buyer", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "EscrowCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "string", "name": "transactionId", "type": "string" },
+      { "indexed": false, "internalType": "string", "name": "role", "type": "string" },
+      { "indexed": true, "internalType": "address", "name": "approver", "type": "address" }
+    ],
+    "name": "TransferApproved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "string", "name": "transactionId", "type": "string" },
+      { "indexed": true, "internalType": "address", "name": "newOwner", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "TransferCompleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "string", "name": "transactionId", "type": "string" },
+      { "indexed": false, "internalType": "string", "name": "reason", "type": "string" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "TransferRejected",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      { "internalType": "string", "name": "_transactionId", "type": "string" },
+      { "internalType": "string", "name": "_role", "type": "string" }
+    ],
+    "name": "approveTransfer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "string", "name": "_transactionId", "type": "string" },
+      { "internalType": "string", "name": "_role", "type": "string" }
+    ],
+    "name": "approveTransferByBackend",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "string", "name": "_transactionId", "type": "string" }],
+    "name": "areAllPartiesApproved",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "string", "name": "_transactionId", "type": "string" }],
+    "name": "completeTransfer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "string", "name": "_transactionId", "type": "string" },
+      { "internalType": "address", "name": "_seller", "type": "address" },
+      { "internalType": "address", "name": "_buyer", "type": "address" },
+      { "internalType": "address", "name": "_registrar", "type": "address" },
+      { "internalType": "string", "name": "_parcelId", "type": "string" },
+      { "internalType": "uint256", "name": "_amount", "type": "uint256" },
+      { "internalType": "string", "name": "_ipfsDocumentCid", "type": "string" }
+    ],
+    "name": "createEscrow",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "name": "escrowIds",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "name": "escrows",
+    "outputs": [
+      { "internalType": "string", "name": "transactionId", "type": "string" },
+      { "internalType": "string", "name": "parcelId", "type": "string" },
+      { "internalType": "address", "name": "seller", "type": "address" },
+      { "internalType": "address", "name": "buyer", "type": "address" },
+      { "internalType": "address", "name": "registrar", "type": "address" },
+      { "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "internalType": "uint8", "name": "status", "type": "uint8" },
+      { "internalType": "bool", "name": "sellerApproved", "type": "bool" },
+      { "internalType": "bool", "name": "buyerApproved", "type": "bool" },
+      { "internalType": "bool", "name": "registrarApproved", "type": "bool" },
+      { "internalType": "uint256", "name": "createdAt", "type": "uint256" },
+      { "internalType": "uint256", "name": "completedAt", "type": "uint256" },
+      { "internalType": "string", "name": "ipfsDocumentCid", "type": "string" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAllEscrowIds",
+    "outputs": [{ "internalType": "string[]", "name": "", "type": "string[]" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getEscrowCount",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "string", "name": "_transactionId", "type": "string" }],
+    "name": "getEscrowState",
+    "outputs": [
+      {
+        "components": [
+          { "internalType": "string", "name": "transactionId", "type": "string" },
+          { "internalType": "string", "name": "parcelId", "type": "string" },
+          { "internalType": "address", "name": "seller", "type": "address" },
+          { "internalType": "address", "name": "buyer", "type": "address" },
+          { "internalType": "address", "name": "registrar", "type": "address" },
+          { "internalType": "uint256", "name": "amount", "type": "uint256" },
+          { "internalType": "uint8", "name": "status", "type": "uint8" },
+          { "internalType": "bool", "name": "sellerApproved", "type": "bool" },
+          { "internalType": "bool", "name": "buyerApproved", "type": "bool" },
+          { "internalType": "bool", "name": "registrarApproved", "type": "bool" },
+          { "internalType": "uint256", "name": "createdAt", "type": "uint256" },
+          { "internalType": "uint256", "name": "completedAt", "type": "uint256" },
+          { "internalType": "string", "name": "ipfsDocumentCid", "type": "string" }
+        ],
+        "internalType": "struct LandTitleEscrow.Escrow",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "registrarAddress",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "string", "name": "_transactionId", "type": "string" },
+      { "internalType": "string", "name": "_reason", "type": "string" }
+    ],
+    "name": "rejectTransfer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "_newRegistrar", "type": "address" }],
+    "name": "updateRegistrar",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

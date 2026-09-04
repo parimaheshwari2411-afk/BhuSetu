@@ -145,12 +145,45 @@ contract LandTitleEscrow {
     }
 
     /**
-     * @dev Approve transfer by stakeholder
+     * @dev Approve transfer by the named stakeholder wallet (on-chain identity).
      */
     function approveTransfer(string memory _transactionId, string memory _role)
         public
         escrowExists(_transactionId)
     {
+        _applyApproval(_transactionId, _role, msg.sender, false);
+    }
+
+    /**
+     * @dev Backend operator records a JWT-authenticated approval.
+     * Still requires three distinct roles (seller, buyer, registrar) before completion.
+     */
+    function approveTransferByBackend(string memory _transactionId, string memory _role)
+        public
+        onlyOwner
+        escrowExists(_transactionId)
+    {
+        Escrow storage escrow = escrows[_transactionId];
+        address attributed;
+        bytes32 roleHash = keccak256(abi.encodePacked(_role));
+        if (roleHash == keccak256(abi.encodePacked("SELLER"))) {
+            attributed = escrow.seller;
+        } else if (roleHash == keccak256(abi.encodePacked("BUYER"))) {
+            attributed = escrow.buyer;
+        } else if (roleHash == keccak256(abi.encodePacked("REGISTRAR"))) {
+            attributed = escrow.registrar;
+        } else {
+            revert("Invalid role");
+        }
+        _applyApproval(_transactionId, _role, attributed, true);
+    }
+
+    function _applyApproval(
+        string memory _transactionId,
+        string memory _role,
+        address _approver,
+        bool _backendMediated
+    ) internal {
         Escrow storage escrow = escrows[_transactionId];
 
         require(
@@ -167,22 +200,24 @@ contract LandTitleEscrow {
         bytes32 registrarHash = keccak256(abi.encodePacked("REGISTRAR"));
 
         if (roleHash == sellerHash) {
-            require(msg.sender == escrow.seller, "Only seller can approve");
+            require(_backendMediated || msg.sender == escrow.seller, "Only seller can approve");
             escrow.sellerApproved = true;
-            emit TransferApproved(_transactionId, "SELLER", msg.sender);
+            emit TransferApproved(_transactionId, "SELLER", _approver);
         } else if (roleHash == buyerHash) {
-            require(msg.sender == escrow.buyer, "Only buyer can approve");
+            require(_backendMediated || msg.sender == escrow.buyer, "Only buyer can approve");
             escrow.buyerApproved = true;
-            emit TransferApproved(_transactionId, "BUYER", msg.sender);
+            emit TransferApproved(_transactionId, "BUYER", _approver);
         } else if (roleHash == registrarHash) {
-            require(msg.sender == escrow.registrar, "Only registrar can approve");
+            require(
+                _backendMediated || msg.sender == escrow.registrar,
+                "Only registrar can approve"
+            );
             escrow.registrarApproved = true;
-            emit TransferApproved(_transactionId, "REGISTRAR", msg.sender);
+            emit TransferApproved(_transactionId, "REGISTRAR", _approver);
         } else {
             revert("Invalid role");
         }
 
-        // Update status based on approvals
         updateEscrowStatus(_transactionId);
     }
 
@@ -214,9 +249,12 @@ contract LandTitleEscrow {
      */
     function completeTransfer(string memory _transactionId)
         public
-        onlyRegistrar
         escrowExists(_transactionId)
     {
+        require(
+            msg.sender == registrarAddress || msg.sender == owner,
+            "Only registrar or contract owner can complete"
+        );
         Escrow storage escrow = escrows[_transactionId];
 
         require(

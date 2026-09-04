@@ -6,41 +6,73 @@ import { blockchainService } from "../services/blockchain.service";
 import { ipfsService } from "../services/ipfs.service";
 import { IApiResponse, TransactionStatus, ITransaction } from "../types";
 import multer from "multer";
-import path from "path";
+import fs from "fs";
 
 const router = Router();
+const ZERO = "0x0000000000000000000000000000000000000000";
 
-// Configure multer for file uploads
 const upload = multer({
   dest: "uploads/",
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
-  fileFilter: (req, file, cb) => {
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
     const allowedMimes = ["application/pdf", "image/jpeg", "image/png"];
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type"));
+      cb(new Error("Invalid file type. Upload PDF, JPEG, or PNG."));
     }
   },
 });
 
-/**
- * POST /api/v1/transfers
- * Initiate land transfer request with deed document
- */
+function mapTransaction(row: Record<string, unknown>): ITransaction {
+  return {
+    id: row.id as string,
+    parcelId: row.parcel_id as string,
+    buyerId: row.buyer_id as string,
+    sellerId: row.seller_id as string,
+    status: row.status as TransactionStatus,
+    deedIpfsCid: row.deed_ipfs_cid as string,
+    multiSigContractAddress: (row.multi_sig_contract_address as string) || "",
+    multiSigTxHash: (row.multi_sig_tx_hash as string) || null,
+    buyerApprovedAt: (row.buyer_approved_at as Date) || null,
+    sellerApprovedAt: (row.seller_approved_at as Date) || null,
+    registrarApprovedAt: (row.registrar_approved_at as Date) || null,
+    completedAt: (row.completed_at as Date) || null,
+    createdAt: row.created_at as Date,
+    updatedAt: row.updated_at as Date,
+  };
+}
+
+async function walletForUser(userId: string): Promise<string> {
+  const result = await queryDatabase(
+    "SELECT wallet_address FROM users WHERE id = $1",
+    [userId]
+  );
+  return (result.rows[0]?.wallet_address as string) || ZERO;
+}
+
 router.post(
   "/",
   authMiddleware,
   upload.single("deed"),
   async (req: AuthenticatedRequest, res: Response) => {
+    let uploadedPath: string | undefined;
     try {
       const { parcelId, buyerId, registrarAddress } = req.body;
       const sellerId = req.user?.id;
 
-      if (!parcelId || !buyerId || !registrarAddress || !sellerId) {
+      if (!parcelId || !buyerId || !sellerId) {
         return res.status(400).json({
           success: false,
-          error: "Missing required fields",
+          error: "Missing required fields: parcelId, buyerId",
+          timestamp: new Date(),
+        });
+      }
+
+      if (parcelId === buyerId || sellerId === buyerId) {
+        return res.status(400).json({
+          success: false,
+          error: "Buyer must be a different user than the seller",
           timestamp: new Date(),
         });
       }
@@ -53,13 +85,13 @@ router.post(
         });
       }
 
-      // Upload deed to IPFS
+      uploadedPath = req.file.path;
+
       const ipfsResult = await ipfsService.uploadFile(
         req.file.path,
         req.file.originalname
       );
 
-      // Get parcel details
       const parcelResult = await queryDatabase(
         "SELECT * FROM land_parcels WHERE id = $1 AND owner_id = $2",
         [parcelId, sellerId]
@@ -74,14 +106,12 @@ router.post(
       }
 
       const parcel = parcelResult.rows[0];
-
-      // Create transaction in database
       const transactionId = uuidv4();
 
       const txResult = await queryDatabase(
-        `INSERT INTO transactions 
-         (id, parcel_id, buyer_id, seller_id, status, deed_ipfs_cid)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO transactions
+         (id, parcel_id, buyer_id, seller_id, status, deed_ipfs_cid, multi_sig_contract_address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
         [
           transactionId,
@@ -90,51 +120,59 @@ router.post(
           sellerId,
           TransactionStatus.PENDING,
           ipfsResult.cid,
+          blockchainService.getContractAddress(),
         ]
       );
 
-      const transaction = txResult.rows[0];
+      const sellerWallet = await walletForUser(sellerId);
+      const buyerWallet = await walletForUser(buyerId);
+      const registrarWallet =
+        registrarAddress ||
+        process.env.REGISTRAR_ADDRESS ||
+        ZERO;
 
-      // Create smart contract escrow
       try {
         const txHash = await blockchainService.createEscrow(
           transactionId,
-          sellerId,
-          buyerId,
-          registrarAddress,
+          sellerWallet,
+          buyerWallet,
+          registrarWallet,
           parcelId,
-          parcel.total_value || "0"
+          parcel.total_value || "0",
+          ipfsResult.cid
         );
 
-        // Update transaction with contract hash
         await queryDatabase(
           `UPDATE transactions SET multi_sig_tx_hash = $1, status = $2 WHERE id = $3`,
           [txHash, TransactionStatus.LOCKED_IN_ESCROW, transactionId]
         );
+
+        txResult.rows[0].multi_sig_tx_hash = txHash;
+        txResult.rows[0].status = TransactionStatus.LOCKED_IN_ESCROW;
       } catch (blockchainError) {
         console.error("Blockchain error:", blockchainError);
-        // Continue with transaction even if blockchain fails for now
+        await queryDatabase(
+          `UPDATE transactions SET status = $1 WHERE id = $2`,
+          [TransactionStatus.LOCKED_IN_ESCROW, transactionId]
+        );
+        txResult.rows[0].status = TransactionStatus.LOCKED_IN_ESCROW;
       }
+
+      await queryDatabase(
+        `INSERT INTO audit_log (transaction_id, action, actor_id, details)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          transactionId,
+          "TRANSFER_INITIATED",
+          sellerId,
+          JSON.stringify({ deedIpfsCid: ipfsResult.cid }),
+        ]
+      );
 
       const response: IApiResponse<ITransaction> = {
         success: true,
-        data: {
-          id: transaction.id,
-          parcelId: transaction.parcel_id,
-          buyerId: transaction.buyer_id,
-          sellerId: transaction.seller_id,
-          status: TransactionStatus.PENDING,
-          deedIpfsCid: ipfsResult.cid,
-          multiSigContractAddress: "",
-          multiSigTxHash: transaction.multi_sig_tx_hash,
-          buyerApprovedAt: null,
-          sellerApprovedAt: null,
-          registrarApprovedAt: null,
-          completedAt: null,
-          createdAt: transaction.created_at,
-          updatedAt: transaction.updated_at,
-        },
-        message: "Transfer initiated successfully",
+        data: mapTransaction(txResult.rows[0]),
+        message: "Transfer initiated and locked in escrow",
         timestamp: new Date(),
       };
 
@@ -146,20 +184,19 @@ router.post(
         error: "Failed to initiate transfer",
         timestamp: new Date(),
       });
+    } finally {
+      if (uploadedPath) {
+        fs.unlink(uploadedPath, () => undefined);
+      }
     }
   }
 );
 
-/**
- * GET /api/v1/transfers/:id
- * Get transfer details
- */
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
     const result = await queryDatabase(
-      `SELECT * FROM transactions WHERE id = $1`,
+      "SELECT * FROM transactions WHERE id = $1",
       [id]
     );
 
@@ -171,30 +208,11 @@ router.get("/:id", async (req: Request, res: Response) => {
       });
     }
 
-    const tx = result.rows[0];
-
-    const response: IApiResponse<ITransaction> = {
+    res.status(200).json({
       success: true,
-      data: {
-        id: tx.id,
-        parcelId: tx.parcel_id,
-        buyerId: tx.buyer_id,
-        sellerId: tx.seller_id,
-        status: tx.status,
-        deedIpfsCid: tx.deed_ipfs_cid,
-        multiSigContractAddress: tx.multi_sig_contract_address,
-        multiSigTxHash: tx.multi_sig_tx_hash,
-        buyerApprovedAt: tx.buyer_approved_at,
-        sellerApprovedAt: tx.seller_approved_at,
-        registrarApprovedAt: tx.registrar_approved_at,
-        completedAt: tx.completed_at,
-        createdAt: tx.created_at,
-        updatedAt: tx.updated_at,
-      },
+      data: mapTransaction(result.rows[0]),
       timestamp: new Date(),
-    };
-
-    res.status(200).json(response);
+    });
   } catch (error) {
     console.error("Get transfer error:", error);
     res.status(500).json({
@@ -205,17 +223,12 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/v1/transfers/:id/approve
- * Approve transfer by buyer or seller
- */
 router.post(
   "/:id/approve",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { signature } = req.body;
       const userId = req.user?.id;
 
       const txResult = await queryDatabase(
@@ -232,17 +245,22 @@ router.post(
       }
 
       const tx = txResult.rows[0];
-
-      // Determine approver role
-      let approverRole: string;
-      let updateField: string;
+      let approverRole: "SELLER" | "BUYER";
+      let updateField: "seller_approved_at" | "buyer_approved_at";
+      let nextStatus: TransactionStatus;
 
       if (userId === tx.seller_id) {
         approverRole = "SELLER";
         updateField = "seller_approved_at";
+        nextStatus = tx.buyer_approved_at
+          ? TransactionStatus.BUYER_APPROVED
+          : TransactionStatus.SELLER_APPROVED;
       } else if (userId === tx.buyer_id) {
         approverRole = "BUYER";
         updateField = "buyer_approved_at";
+        nextStatus = tx.seller_approved_at
+          ? TransactionStatus.BUYER_APPROVED
+          : TransactionStatus.BUYER_APPROVED;
       } else {
         return res.status(403).json({
           success: false,
@@ -251,39 +269,38 @@ router.post(
         });
       }
 
-      // Approve in smart contract
-      try {
-        const blockchainTxHash = await blockchainService.approveEscrow(
+      const blockchainTxHash = await blockchainService.approveEscrow(
+        id,
+        approverRole
+      );
+
+      await queryDatabase(
+        `UPDATE transactions SET ${updateField} = NOW(), status = $1 WHERE id = $2`,
+        [nextStatus, id]
+      );
+
+      await queryDatabase(
+        `INSERT INTO audit_log (transaction_id, action, actor_id, details)
+         VALUES ($1, $2, $3, $4)`,
+        [
           id,
-          approverRole
-        );
+          `${approverRole}_APPROVED`,
+          userId,
+          JSON.stringify({ blockchainTxHash }),
+        ]
+      );
 
-        // Update transaction approval
-        await queryDatabase(
-          `UPDATE transactions SET ${updateField} = NOW() WHERE id = $1`,
-          [id]
-        );
-
-        const response: IApiResponse = {
-          success: true,
-          data: {
-            transactionId: id,
-            approver: approverRole,
-            blockchainTxHash,
-          },
-          message: `${approverRole} approval recorded`,
-          timestamp: new Date(),
-        };
-
-        res.status(200).json(response);
-      } catch (blockchainError) {
-        console.error("Blockchain approval error:", blockchainError);
-        res.status(500).json({
-          success: false,
-          error: "Failed to record approval on blockchain",
-          timestamp: new Date(),
-        });
-      }
+      res.status(200).json({
+        success: true,
+        data: {
+          transactionId: id,
+          approver: approverRole,
+          blockchainTxHash,
+          status: nextStatus,
+        },
+        message: `${approverRole} approval recorded`,
+        timestamp: new Date(),
+      });
     } catch (error) {
       console.error("Approve transfer error:", error);
       res.status(500).json({
@@ -295,85 +312,58 @@ router.post(
   }
 );
 
-/**
- * GET /api/v1/transfers
- * Get all transfers (with optional filtering)
- */
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const status = req.query.status as string;
-    const buyerId = req.query.buyerId as string;
-    const sellerId = req.query.sellerId as string;
+    const status = req.query.status as string | undefined;
+    const buyerId = req.query.buyerId as string | undefined;
+    const sellerId = req.query.sellerId as string | undefined;
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = parseInt(req.query.pageSize as string) || 20;
     const offset = (page - 1) * pageSize;
 
-    let query = "SELECT * FROM transactions WHERE 1=1";
-    const params: any[] = [];
+    const filters: string[] = [];
+    const params: unknown[] = [];
 
     if (status) {
-      query += ` AND status = $${params.length + 1}`;
       params.push(status);
+      filters.push(`status = $${params.length}`);
     }
     if (buyerId) {
-      query += ` AND buyer_id = $${params.length + 1}`;
       params.push(buyerId);
+      filters.push(`buyer_id = $${params.length}`);
     }
     if (sellerId) {
-      query += ` AND seller_id = $${params.length + 1}`;
       params.push(sellerId);
+      filters.push(`seller_id = $${params.length}`);
     }
 
-    // Get total count
+    const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+
     const countResult = await queryDatabase(
-      `SELECT COUNT(*) as total FROM transactions WHERE 1=1 ${
-        status ? `AND status = $1` : ""
-      } ${buyerId ? `AND buyer_id = $${status ? 2 : 1}` : ""} ${
-        sellerId ? `AND seller_id = $${buyerId && status ? 3 : buyerId ? 2 : 1}` : ""
-      }`,
+      `SELECT COUNT(*) as total FROM transactions ${where}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    params.push(pageSize, offset);
+    const result = await queryDatabase(
+      `SELECT * FROM transactions ${where}
+       ORDER BY created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
 
-    const total = parseInt(countResult.rows[0].total);
-
-    // Get paginated results
-    const result = await queryDatabase(
-      `${query} ORDER BY created_at DESC LIMIT $${
-        params.length + 1
-      } OFFSET $${params.length + 2}`,
-      [...params, pageSize, offset]
-    );
-
-    const transfers: ITransaction[] = result.rows.map((row: any) => ({
-      id: row.id,
-      parcelId: row.parcel_id,
-      buyerId: row.buyer_id,
-      sellerId: row.seller_id,
-      status: row.status,
-      deedIpfsCid: row.deed_ipfs_cid,
-      multiSigContractAddress: row.multi_sig_contract_address,
-      multiSigTxHash: row.multi_sig_tx_hash,
-      buyerApprovedAt: row.buyer_approved_at,
-      sellerApprovedAt: row.seller_approved_at,
-      registrarApprovedAt: row.registrar_approved_at,
-      completedAt: row.completed_at,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
-
-    const response: any = {
+    res.status(200).json({
       success: true,
-      data: transfers,
+      data: result.rows.map(mapTransaction),
       pagination: {
         total,
         page,
         pageSize,
-        totalPages: Math.ceil(total / pageSize),
+        totalPages: Math.ceil(total / pageSize) || 1,
       },
       timestamp: new Date(),
-    };
-
-    res.status(200).json(response);
+    });
   } catch (error) {
     console.error("List transfers error:", error);
     res.status(500).json({

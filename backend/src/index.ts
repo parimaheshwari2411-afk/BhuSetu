@@ -21,7 +21,12 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS Configuration
 const corsOptions = {
-  origin: (process.env.CORS_ORIGIN || "http://localhost:5173").split(","),
+  origin: (
+    process.env.CORS_ORIGIN ||
+    "http://localhost:5173,http://localhost:8443,http://127.0.0.1:8443,http://localhost:3000"
+  )
+    .split(",")
+    .map((origin) => origin.trim()),
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -32,13 +37,15 @@ app.use(cors(corsOptions));
 app.use(requestLogger);
 
 // Health Check Endpoint
-app.get("/health", (req: Request, res: Response) => {
+const healthHandler = (_req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
-});
+};
+app.get("/health", healthHandler);
+app.get("/api/v1/health", healthHandler);
 
 // API Routes (all under /api/v1 namespace)
 app.use("/api/v1/auth", authRoutes);

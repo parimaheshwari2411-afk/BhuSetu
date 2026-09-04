@@ -1,30 +1,63 @@
 import { Router, Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 import bcryptjs from "bcryptjs";
 import { queryDatabase } from "../utils/database";
 import { IApiResponse, IUser, UserRole } from "../types";
+import { authMiddleware, AuthenticatedRequest } from "../middleware/authMiddleware";
 
 const router = Router();
+const ALLOWED_SELF_REGISTER: UserRole[] = [
+  UserRole.CITIZEN,
+  UserRole.SURVEYOR,
+  UserRole.REGISTRAR,
+];
 
-/**
- * POST /api/v1/auth/register
- * Register new user (CITIZEN, SURVEYOR)
- */
+function signToken(user: { id: string; email: string; role: string }): string {
+  const options: SignOptions = {
+    expiresIn: (process.env.JWT_EXPIRY || "7d") as SignOptions["expiresIn"],
+  };
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    process.env.JWT_SECRET || "secret",
+    options
+  );
+}
+
+function mapUser(row: Record<string, unknown>): Partial<IUser> {
+  return {
+    id: row.id as string,
+    fullName: row.full_name as string,
+    email: row.email as string,
+    phoneNumber: row.phone_number as string,
+    role: row.role as UserRole,
+    eKycVerified: Boolean(row.e_kyc_verified),
+    walletAddress: (row.wallet_address as string) || "",
+  };
+}
+
 router.post("/register", async (req: Request, res: Response) => {
   try {
-    const { fullName, email, phoneNumber, role, password } = req.body;
+    const { fullName, email, phoneNumber, role, password, walletAddress } =
+      req.body;
 
-    if (!fullName || !email || !phoneNumber || !role || !password) {
+    if (!fullName || !email || !password || !role) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields",
+        error: "Missing required fields: fullName, email, password, role",
         timestamp: new Date(),
       });
     }
 
-    // Check if user exists
+    if (!ALLOWED_SELF_REGISTER.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid role. Use CITIZEN, SURVEYOR, or REGISTRAR",
+        timestamp: new Date(),
+      });
+    }
+
     const existingUser = await queryDatabase(
-      "SELECT * FROM users WHERE email = $1",
+      "SELECT id FROM users WHERE email = $1",
       [email]
     );
 
@@ -36,29 +69,28 @@ router.post("/register", async (req: Request, res: Response) => {
       });
     }
 
-    // Hash password
     const hashedPassword = await bcryptjs.hash(password, 10);
 
-    // Insert user
     const result = await queryDatabase(
-      `INSERT INTO users (id, full_name, email, phone_number, role, password_hash, e_kyc_verified)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, false)
-       RETURNING id, full_name, email, phone_number, role, e_kyc_verified, created_at`,
-      [fullName, email, phoneNumber, role, hashedPassword]
+      `INSERT INTO users (id, full_name, email, phone_number, role, password_hash, e_kyc_verified, wallet_address)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, false, $6)
+       RETURNING id, full_name, email, phone_number, role, e_kyc_verified, wallet_address, created_at`,
+      [
+        fullName,
+        email,
+        phoneNumber || null,
+        role,
+        hashedPassword,
+        walletAddress || null,
+      ]
     );
 
     const user = result.rows[0];
+    const token = signToken(user);
 
-    const response: IApiResponse<Partial<IUser>> = {
+    const response: IApiResponse<Partial<IUser> & { token: string }> = {
       success: true,
-      data: {
-        id: user.id,
-        fullName: user.full_name,
-        email: user.email,
-        phoneNumber: user.phone_number,
-        role: user.role as UserRole,
-        eKycVerified: user.e_kyc_verified,
-      },
+      data: { ...mapUser(user), token } as Partial<IUser> & { token: string },
       timestamp: new Date(),
     };
 
@@ -73,10 +105,6 @@ router.post("/register", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/v1/auth/login
- * Authenticate user and return JWT token
- */
 router.post("/login", async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -89,11 +117,9 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // Find user
-    const result = await queryDatabase(
-      "SELECT * FROM users WHERE email = $1",
-      [email]
-    );
+    const result = await queryDatabase("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({
@@ -104,12 +130,7 @@ router.post("/login", async (req: Request, res: Response) => {
     }
 
     const user = result.rows[0];
-
-    // Verify password
-    const isPasswordValid = await bcryptjs.compare(
-      password,
-      user.password_hash
-    );
+    const isPasswordValid = await bcryptjs.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -119,36 +140,16 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // Generate JWT
-    const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      process.env.JWT_SECRET || "secret",
-      {
-        expiresIn: process.env.JWT_EXPIRY || "7d",
-      }
-    );
+    const token = signToken(user);
 
-    const response: IApiResponse = {
+    res.status(200).json({
       success: true,
       data: {
         token,
-        user: {
-          id: user.id,
-          fullName: user.full_name,
-          email: user.email,
-          role: user.role,
-          eKycVerified: user.e_kyc_verified,
-          walletAddress: user.wallet_address,
-        },
+        user: mapUser(user),
       },
       timestamp: new Date(),
-    };
-
-    res.status(200).json(response);
+    });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({
@@ -159,10 +160,37 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/v1/auth/verify-token
- * Verify JWT token validity
- */
+router.get("/me", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await queryDatabase(
+      `SELECT id, full_name, email, phone_number, role, e_kyc_verified, wallet_address, created_at
+       FROM users WHERE id = $1`,
+      [req.user?.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+        timestamp: new Date(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: mapUser(result.rows[0]),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error("Me error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to load profile",
+      timestamp: new Date(),
+    });
+  }
+});
+
 router.post("/verify-token", async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -182,7 +210,7 @@ router.post("/verify-token", async (req: Request, res: Response) => {
       data: { valid: true, decoded },
       timestamp: new Date(),
     });
-  } catch (error) {
+  } catch {
     res.status(401).json({
       success: false,
       error: "Invalid token",
@@ -191,10 +219,6 @@ router.post("/verify-token", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/v1/auth/refresh-token
- * Refresh JWT token
- */
 router.post("/refresh-token", async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -207,30 +231,23 @@ router.post("/refresh-token", async (req: Request, res: Response) => {
       });
     }
 
-    let decoded: any;
+    let decoded: { id: string; email: string; role: string };
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
-    } catch (error: any) {
-      if (error.name === "TokenExpiredError") {
-        const payload = jwt.decode(token) as any;
-        decoded = payload;
+      decoded = jwt.verify(token, process.env.JWT_SECRET || "secret") as {
+        id: string;
+        email: string;
+        role: string;
+      };
+    } catch (error: unknown) {
+      const err = error as { name?: string };
+      if (err.name === "TokenExpiredError") {
+        decoded = jwt.decode(token) as { id: string; email: string; role: string };
       } else {
         throw error;
       }
     }
 
-    // Generate new token
-    const newToken = jwt.sign(
-      {
-        id: decoded.id,
-        email: decoded.email,
-        role: decoded.role,
-      },
-      process.env.JWT_SECRET || "secret",
-      {
-        expiresIn: process.env.JWT_EXPIRY || "7d",
-      }
-    );
+    const newToken = signToken(decoded);
 
     res.status(200).json({
       success: true,
