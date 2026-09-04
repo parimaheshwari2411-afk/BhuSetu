@@ -1,0 +1,95 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database with PostGIS
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: land-registry-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-land_registry}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - land-registry-network
+
+  # Local IPFS Node
+  ipfs:
+    image: ipfs/kubo:latest
+    container_name: land-registry-ipfs
+    ports:
+      - "4001:4001/tcp"
+      - "4001:4001/udp"
+      - "127.0.0.1:5001:5001"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ipfs_data:/data/ipfs
+      - ipfs_staging:/export
+    environment:
+      - IPFS_PROFILE=server
+    networks:
+      - land-registry-network
+
+  # Anvil Local Ethereum Node (for smart contracts)
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: land-registry-anvil
+    command: anvil --host 0.0.0.0 --accounts 10 --gas-price 1
+    ports:
+      - "8545:8545"
+    environment:
+      - ANVIL_MNEMONIC=test test test test test test test test test test test junk
+    networks:
+      - land-registry-network
+
+  # Backend API (Node.js)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: land-registry-api
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-land_registry}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      ETHEREUM_RPC_URL: http://anvil:8545
+      LOCAL_IPFS_URL: http://ipfs:5001
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key_min_32_chars}
+      CORS_ORIGIN: http://localhost:5173,http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ipfs:
+        condition: service_started
+      anvil:
+        condition: service_started
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/uploads:/app/uploads
+    networks:
+      - land-registry-network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  ipfs_data:
+  ipfs_staging:
+
+networks:
+  land-registry-network:
+    driver: bridge
