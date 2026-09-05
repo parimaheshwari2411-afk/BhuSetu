@@ -1,0 +1,139 @@
+[
+  {
+    "state": "Uttar Pradesh",
+    "code": "UP",
+    "cities": [
+      { "name": "Lucknow", "district": "Lucknow", "lon": 80.9462, "lat": 26.8467 },
+      { "name": "Kanpur", "district": "Kanpur Nagar", "lon": 80.3319, "lat": 26.4499 },
+      { "name": "Varanasi", "district": "Varanasi", "lon": 82.9739, "lat": 25.3176 },
+      { "name": "Prayagraj", "district": "Prayagraj", "lon": 81.8463, "lat": 25.4358 },
+      { "name": "Agra", "district": "Agra", "lon": 78.0081, "lat": 27.1767 },
+      { "name": "Noida", "district": "Gautam Buddha Nagar", "lon": 77.391, "lat": 28.5355 },
+      { "name": "Ghaziabad", "district": "Ghaziabad", "lon": 77.4538, "lat": 28.6692 },
+      { "name": "Meerut", "district": "Meerut", "lon": 77.7064, "lat": 28.9845 }
+    ]
+  },
+  {
+    "state": "Maharashtra",
+    "code": "MH",
+    "cities": [
+      { "name": "Mumbai", "district": "Mumbai Suburban", "lon": 72.8777, "lat": 19.076 },
+      { "name": "Pune", "district": "Pune", "lon": 73.8567, "lat": 18.5204 },
+      { "name": "Nagpur", "district": "Nagpur", "lon": 79.0882, "lat": 21.1458 },
+      { "name": "Nashik", "district": "Nashik", "lon": 73.7898, "lat": 19.9975 },
+      { "name": "Thane", "district": "Thane", "lon": 72.9781, "lat": 19.2183 },
+      { "name": "Aurangabad", "district": "Chhatrapati Sambhajinagar", "lon": 75.3433, "lat": 19.8762 }
+    ]
+  },
+  {
+    "state": "Rajasthan",
+    "code": "RJ",
+    "cities": [
+      { "name": "Jaipur", "district": "Jaipur", "lon": 75.7873, "lat": 26.9124 },
+      { "name": "Jodhpur", "district": "Jodhpur", "lon": 73.0243, "lat": 26.2389 },
+      { "name": "Udaipur", "district": "Udaipur", "lon": 73.7125, "lat": 24.5854 },
+      { "name": "Kota", "district": "Kota", "lon": 75.8648, "lat": 25.2138 },
+      { "name": "Ajmer", "district": "Ajmer", "lon": 74.6399, "lat": 26.4499 },
+      { "name": "Bikaner", "district": "Bikaner", "lon": 73.3119, "lat": 28.0229 }
+    ]
+  },
+  {
+    "state": "Gujarat",
+    "code": "GJ",
+    "cities": [
+      { "name": "Ahmedabad", "district": "Ahmedabad", "lon": 72.5714, "lat": 23.0225 },
+      { "name": "Surat", "district": "Surat", "lon": 72.8311, "lat": 21.1702 },
+      { "name": "Vadodara", "district": "Vadodara", "lon": 73.1812, "lat": 22.3072 },
+      { "name": "Rajkot", "district": "Rajkot", "lon": 70.8022, "lat": 22.3039 },
+      { "name": "Gandhinagar", "district": "Gandhinagar", "lon": 72.6369, "lat": 23.2156 },
+      { "name": "Bhavnagar", "district": "Bhavnagar", "lon": 72.1519, "lat": 21.7645 }
+    ]
+  },
+  {
+    "state": "Karnataka",
+    "code": "KA",
+    "cities": [
+      { "name": "Bengaluru", "district": "Bengaluru Urban", "lon": 77.5946, "lat": 12.9716 },
+      { "name": "Mysuru", "district": "Mysuru", "lon": 76.6394, "lat": 12.2958 },
+      { "name": "Mangaluru", "district": "Dakshina Kannada", "lon": 74.856, "lat": 12.9141 },
+      { "name": "Hubballi", "district": "Dharwad", "lon": 75.124, "lat": 15.3647 },
+      { "name": "Belagavi", "district": "Belagavi", "lon": 74.4977, "lat": 15.8497 }
+    ]
+  },
+  {
+    "state": "Madhya Pradesh",
+    "code": "MP",
+    "cities": [
+      { "name": "Bhopal", "district": "Bhopal", "lon": 77.4126, "lat": 23.2599 },
+      { "name": "Indore", "district": "Indore", "lon": 75.8577, "lat": 22.7196 },
+      { "name": "Gwalior", "district": "Gwalior", "lon": 78.1828, "lat": 26.2183 },
+      { "name": "Jabalpur", "district": "Jabalpur", "lon": 79.9864, "lat": 23.1815 },
+      { "name": "Ujjain", "district": "Ujjain", "lon": 75.7764, "lat": 23.1765 }
+    ]
+  },
+  {
+    "state": "Bihar",
+    "code": "BR",
+    "cities": [
+      { "name": "Patna", "district": "Patna", "lon": 85.1376, "lat": 25.5941 },
+      { "name": "Gaya", "district": "Gaya", "lon": 85.0, "lat": 24.7914 },
+      { "name": "Bhagalpur", "district": "Bhagalpur", "lon": 86.9842, "lat": 25.2445 },
+      { "name": "Muzaffarpur", "district": "Muzaffarpur", "lon": 85.391, "lat": 26.1209 },
+      { "name": "Darbhanga", "district": "Darbhanga", "lon": 85.8918, "lat": 26.1542 }
+    ]
+  },
+  {
+    "state": "Haryana",
+    "code": "HR",
+    "cities": [
+      { "name": "Chandigarh", "district": "Panchkula", "lon": 76.7794, "lat": 30.7333 },
+      { "name": "Gurugram", "district": "Gurugram", "lon": 77.0266, "lat": 28.4595 },
+      { "name": "Faridabad", "district": "Faridabad", "lon": 77.3178, "lat": 28.4089 },
+      { "name": "Panipat", "district": "Panipat", "lon": 76.9635, "lat": 29.3909 },
+      { "name": "Karnal", "district": "Karnal", "lon": 76.9905, "lat": 29.6857 }
+    ]
+  },
+  {
+    "state": "Punjab",
+    "code": "PB",
+    "cities": [
+      { "name": "Amritsar", "district": "Amritsar", "lon": 74.8723, "lat": 31.634 },
+      { "name": "Ludhiana", "district": "Ludhiana", "lon": 75.8573, "lat": 30.901 },
+      { "name": "Jalandhar", "district": "Jalandhar", "lon": 75.5762, "lat": 31.326 },
+      { "name": "Patiala", "district": "Patiala", "lon": 76.3869, "lat": 30.3398 },
+      { "name": "Mohali", "district": "SAS Nagar", "lon": 76.7172, "lat": 30.7046 }
+    ]
+  },
+  {
+    "state": "Odisha",
+    "code": "OD",
+    "cities": [
+      { "name": "Bhubaneswar", "district": "Khordha", "lon": 85.8245, "lat": 20.2961 },
+      { "name": "Cuttack", "district": "Cuttack", "lon": 85.882, "lat": 20.4625 },
+      { "name": "Puri", "district": "Puri", "lon": 85.8312, "lat": 19.8135 },
+      { "name": "Rourkela", "district": "Sundargarh", "lon": 84.8536, "lat": 22.2604 },
+      { "name": "Sambalpur", "district": "Sambalpur", "lon": 83.9701, "lat": 21.4669 }
+    ]
+  },
+  {
+    "state": "Tamil Nadu",
+    "code": "TN",
+    "cities": [
+      { "name": "Chennai", "district": "Chennai", "lon": 80.2707, "lat": 13.0827 },
+      { "name": "Coimbatore", "district": "Coimbatore", "lon": 76.9558, "lat": 11.0168 },
+      { "name": "Madurai", "district": "Madurai", "lon": 78.1198, "lat": 9.9252 },
+      { "name": "Tiruchirappalli", "district": "Tiruchirappalli", "lon": 78.7047, "lat": 10.7905 },
+      { "name": "Salem", "district": "Salem", "lon": 78.146, "lat": 11.6643 }
+    ]
+  },
+  {
+    "state": "Telangana",
+    "code": "TS",
+    "cities": [
+      { "name": "Hyderabad", "district": "Hyderabad", "lon": 78.4867, "lat": 17.385 },
+      { "name": "Warangal", "district": "Warangal", "lon": 79.5941, "lat": 17.9689 },
+      { "name": "Nizamabad", "district": "Nizamabad", "lon": 78.0941, "lat": 18.6725 },
+      { "name": "Karimnagar", "district": "Karimnagar", "lon": 79.1288, "lat": 18.4386 }
+    ]
+  }
+]

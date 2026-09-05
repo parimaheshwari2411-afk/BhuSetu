@@ -1,14 +1,16 @@
-import express, { Express, Request, Response, NextFunction } from "express";
+import express, { Express, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { errorHandler } from "./middleware/errorHandler";
 import { requestLogger } from "./middleware/requestLogger";
 
-// Route imports
 import authRoutes from "./routes/auth";
 import parcelRoutes from "./routes/parcels";
 import transactionRoutes from "./routes/transactions";
 import adminRoutes from "./routes/admin";
+import geoRoutes from "./routes/geo";
+import blockchainRoutes from "./routes/blockchain";
+import userRoutes from "./routes/users";
 
 dotenv.config();
 
@@ -20,18 +22,31 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // CORS Configuration
-const corsOptions = {
-  origin: (
-    process.env.CORS_ORIGIN ||
-    "http://localhost:5173,http://localhost:8443,http://127.0.0.1:8443,http://localhost:3000"
-  )
-    .split(",")
-    .map((origin) => origin.trim()),
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
-app.use(cors(corsOptions));
+const configuredOrigins = (
+  process.env.CORS_ORIGIN ||
+  "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8443,http://127.0.0.1:8443,http://localhost:3000"
+)
+  .split(",")
+  .map((origin) => origin.trim());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (
+        !origin ||
+        configuredOrigins.includes(origin) ||
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+      ) {
+        callback(null, true);
+        return;
+      }
+        callback(null, false);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // Request Logging Middleware
 app.use(requestLogger);
@@ -52,6 +67,9 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/parcels", parcelRoutes);
 app.use("/api/v1/transfers", transactionRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/geo", geoRoutes);
+app.use("/api/v1/blockchain", blockchainRoutes);
+app.use("/api/v1/users", userRoutes);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

@@ -85,7 +85,7 @@ export async function register(payload: {
   const body = await apiPost("/auth/register", payload);
   const token = (body.data?.token as string) || "";
   if (token) setStoredToken(token);
-  return body.data as SessionUser & { token?: string };
+  return body.data as SessionUser & { token?: string; user?: SessionUser };
 }
 
 export async function fetchMe() {
@@ -109,8 +109,8 @@ export async function createParcel(payload: unknown) {
   return apiPost("/parcels", payload);
 }
 
-export async function fetchParcels() {
-  return apiGet("/parcels?pageSize=50");
+export async function fetchParcels(query = "pageSize=50") {
+  return apiGet(`/parcels?${query}`);
 }
 
 export async function fetchTransfers() {
@@ -135,4 +135,42 @@ export async function approveAdminTransfer(transactionId: string) {
 
 export async function fetchAdminStats() {
   return apiGet("/admin/statistics");
+}
+
+export type GeoState = { state: string; code: string; cityCount: number };
+export type GeoCity = { name: string; district: string; lon: number; lat: number };
+
+export async function fetchGeoTree() {
+  const body = await apiGet("/geo");
+  return body.data as Array<{
+    state: string;
+    code: string;
+    cities: GeoCity[];
+  }>;
+}
+
+export async function fetchCities(state: string) {
+  const body = await apiGet(`/geo/states/${encodeURIComponent(state)}/cities`);
+  return body.data as { state: string; code: string; cities: GeoCity[] };
+}
+
+export async function fetchUsers() {
+  const body = await apiGet("/users");
+  return body.data as Array<{
+    id: string;
+    fullName: string;
+    email: string;
+    role: UserRole;
+  }>;
+}
+
+export async function fetchBlockchainStatus() {
+  const body = await apiGet("/blockchain/status");
+  return body.data as {
+    demoMode: boolean;
+    contractAddress: string;
+    rpcUrl: string;
+    gasPrice: string;
+    flow: Array<{ step: number; title: string; detail: string }>;
+  };
 }

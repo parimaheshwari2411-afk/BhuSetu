@@ -5,6 +5,7 @@ import { authMiddleware, AuthenticatedRequest } from "../middleware/authMiddlewa
 import { blockchainService } from "../services/blockchain.service";
 import { ipfsService } from "../services/ipfs.service";
 import { IApiResponse, TransactionStatus, ITransaction } from "../types";
+import { isDatabaseUnavailable, SAMPLE_TRANSFERS } from "../data/sampleStore";
 import multer from "multer";
 import fs from "fs";
 
@@ -366,6 +367,15 @@ router.get("/", async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("List transfers error:", error);
+    if (isDatabaseUnavailable(error)) {
+      return res.status(200).json({
+        success: true,
+        data: SAMPLE_TRANSFERS,
+        pagination: { total: SAMPLE_TRANSFERS.length, page: 1, pageSize: 50, totalPages: 1 },
+        message: "PostgreSQL unavailable — bundled sample escrow",
+        timestamp: new Date(),
+      });
+    }
     res.status(500).json({
       success: false,
       error: "Failed to retrieve transfers",

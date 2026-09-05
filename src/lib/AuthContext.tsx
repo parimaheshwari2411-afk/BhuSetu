@@ -62,7 +62,13 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       async register(payload) {
         setError(null);
         const created = await apiRegister(payload);
-        if (created.token && created.id) {
+        const token = (created as { token?: string }).token;
+        const nestedUser = (created as { user?: SessionUser }).user;
+        if (nestedUser) {
+          setUser(nestedUser);
+          return;
+        }
+        if (token && created.id) {
           setUser(created);
           return;
         }

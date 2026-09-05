@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import jwt, { SignOptions } from "jsonwebtoken";
 import bcryptjs from "bcryptjs";
 import { queryDatabase } from "../utils/database";
-import { IApiResponse, IUser, UserRole } from "../types";
+import { IUser, UserRole } from "../types";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/authMiddleware";
 
 const router = Router();
@@ -88,13 +88,14 @@ router.post("/register", async (req: Request, res: Response) => {
     const user = result.rows[0];
     const token = signToken(user);
 
-    const response: IApiResponse<Partial<IUser> & { token: string }> = {
+    res.status(201).json({
       success: true,
-      data: { ...mapUser(user), token } as Partial<IUser> & { token: string },
+      data: {
+        token,
+        user: mapUser(user),
+      },
       timestamp: new Date(),
-    };
-
-    res.status(201).json(response);
+    });
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({

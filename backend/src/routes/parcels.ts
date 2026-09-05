@@ -4,6 +4,7 @@ import { queryDatabase } from "../utils/database";
 import { spatialService } from "../services/spatial.service";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/authMiddleware";
 import { IApiResponse, IPaginatedResponse, ILandParcel } from "../types";
+import { isDatabaseUnavailable, SAMPLE_PARCELS, sampleParcelsGeoJSON } from "../data/sampleStore";
 
 const router = Router();
 
@@ -110,6 +111,14 @@ async function sendParcelsGeoJSON(req: Request, res: Response) {
     res.status(200).json(response);
   } catch (error) {
     console.error("Get parcels GeoJSON error:", error);
+    if (isDatabaseUnavailable(error)) {
+      return res.status(200).json({
+        success: true,
+        data: sampleParcelsGeoJSON(),
+        message: "PostgreSQL unavailable — bundled sample GeoJSON",
+        timestamp: new Date(),
+      });
+    }
     res.status(500).json({
       success: false,
       error: "Failed to retrieve parcels GeoJSON",
@@ -198,27 +207,53 @@ router.get("/search/nearest", async (req: Request, res: Response) => {
 });
 
 router.get("/", async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const pageSize = parseInt(req.query.pageSize as string) || 20;
+  const offset = (page - 1) * pageSize;
+  const state = req.query.state as string | undefined;
+  const city = (req.query.city as string | undefined) || (req.query.district as string | undefined);
+
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const pageSize = parseInt(req.query.pageSize as string) || 20;
-    const offset = (page - 1) * pageSize;
+    const filters: string[] = [];
+    const params: unknown[] = [];
+
+    if (state) {
+      params.push(state);
+      filters.push(`lp.location->>'state' = $${params.length}`);
+    }
+    if (city) {
+      params.push(city);
+      filters.push(
+        `(lp.location->>'district' = $${params.length} OR lp.location->>'village' = $${params.length})`
+      );
+    }
+
+    const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
 
     const countResult = await queryDatabase(
-      "SELECT COUNT(*) as total FROM land_parcels"
+      `SELECT COUNT(*) as total FROM land_parcels lp ${where}`,
+      params
     );
     const total = parseInt(countResult.rows[0].total);
 
+    params.push(pageSize, offset);
     const result = await queryDatabase(
-      `SELECT id, ulpin, owner_id, ST_AsGeoJSON(geometry) as geometry,
-              area_in_sq_meters, total_value, location, document_ipfs_cid,
-              blockchain_hash, created_at, updated_at
-       FROM land_parcels
-       ORDER BY created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [pageSize, offset]
+      `SELECT lp.id, lp.ulpin, lp.owner_id, ST_AsGeoJSON(lp.geometry) as geometry,
+              lp.area_in_sq_meters, lp.total_value, lp.location, lp.document_ipfs_cid,
+              lp.blockchain_hash, lp.created_at, lp.updated_at,
+              u.full_name as owner_name
+       FROM land_parcels lp
+       LEFT JOIN users u ON u.id = lp.owner_id
+       ${where}
+       ORDER BY lp.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
     );
 
-    const parcels = result.rows.map(mapParcel);
+    const parcels = result.rows.map((row: Record<string, unknown>) => ({
+      ...mapParcel(row),
+      ownerName: row.owner_name as string,
+    }));
     const response: IPaginatedResponse<ILandParcel> = {
       success: true,
       data: parcels,
@@ -232,14 +267,35 @@ router.get("/", async (req: Request, res: Response) => {
     };
 
     res.status(200).json(response);
-  } catch (error) {
-    console.error("List parcels error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to retrieve parcels",
-      timestamp: new Date(),
-    });
-  }
+    } catch (error) {
+      console.error("List parcels error:", error);
+      if (isDatabaseUnavailable(error)) {
+        const filtered = SAMPLE_PARCELS.filter((p) => {
+          if (state && p.location.state !== state) return false;
+          if (city && p.location.district !== city && p.location.village !== city) {
+            return false;
+          }
+          return true;
+        });
+        return res.status(200).json({
+          success: true,
+          data: filtered,
+          pagination: {
+            total: filtered.length,
+            page,
+            pageSize,
+            totalPages: 1,
+          },
+          message: "PostgreSQL unavailable — bundled sample cadastral records",
+          timestamp: new Date(),
+        });
+      }
+      res.status(500).json({
+        success: false,
+        error: "Failed to retrieve parcels",
+        timestamp: new Date(),
+      });
+    }
 });
 
 router.get("/:id", async (req: Request, res: Response) => {
